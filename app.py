@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-app.py – Résumé d’e-mails Outlook (.msg) avec GPT-4.1-mini
-Déploiement Streamlit Cloud : ajoutez le secret
-    OPENAI_API_KEY = "sk-…"
-dans l’onglet *Secrets* de l’app.
+app.py – Résumé d’e-mails .msg **et** .eml avec GPT-4.1-mini (Streamlit).
+
+Déploiement Streamlit Cloud :
+  1. Poussez ce fichier + requirements.txt dans votre repo.
+  2. Dans l’onglet *Secrets*, ajoutez :
+       OPENAI_API_KEY = "sk-…"
 """
 
 import io
 from datetime import datetime
+from email import policy
+from email.parser import BytesParser
 
 import extract_msg
 import openai
@@ -42,7 +46,7 @@ def summarise_email(meta: dict, body: str) -> str:
             {"role": "system", "content": ""},
             {"role": "user", "content": prompt},
         ],
-        temperature=0.8,
+        temperature=1,
         max_tokens=2048,
         top_p=1,
     )
@@ -50,28 +54,73 @@ def summarise_email(meta: dict, body: str) -> str:
     return resp.choices[0].message.content.strip()
 
 
-# ─────────────── .msg → enregistrement DataFrame ─────────────
-def msg_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
-    msg = extract_msg.Message(io.BytesIO(raw))
+# ──────────────── Helpers de parsing ────────────────
+def parse_msg(raw: bytes):
+    m = extract_msg.Message(io.BytesIO(raw))
 
     meta = {
-        "date": msg.date or "",
-        "subject": msg.subject or "sans objet",
-        "sender": msg.sender or "inconnu",
-        "to": msg.to or "inconnu",
+        "date": m.date or "",
+        "subject": m.subject or "sans objet",
+        "sender": m.sender or "inconnu",
+        "to": m.to or "inconnu",
         "attachments": [
-            att.longFilename or att.shortFilename for att in msg.attachments
-        ] if msg.attachments else [],
+            att.longFilename or att.shortFilename for att in m.attachments
+        ] if m.attachments else [],
+    }
+    body = m.body or ""
+    return meta, body
+
+
+def parse_eml(raw: bytes):
+    eml = BytesParser(policy=policy.default).parsebytes(raw)
+
+    meta = {
+        "date": eml.get("date", ""),
+        "subject": eml.get("subject", "sans objet"),
+        "sender": eml.get("from", "inconnu"),
+        "to": eml.get("to", "inconnu"),
+        "attachments": [
+            part.get_filename()
+            for part in eml.iter_attachments()
+            if part.get_filename()
+        ],
     }
 
-    # essai de lecture de la date du mail
+    # cherche la première partie text/plain non jointe
+    body = ""
+    if eml.is_multipart():
+        for part in eml.walk():
+            if (
+                part.get_content_type() == "text/plain"
+                and part.get_filename() is None
+            ):
+                body = part.get_content()
+                break
+    else:
+        body = eml.get_content()
+
+    return meta, body
+
+
+# ─────────────── .msg/.eml → enregistrement DataFrame ─────────────
+def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
+    ext = fname.lower().rsplit(".", 1)[-1]
+
+    if ext == "msg":
+        meta, body = parse_msg(raw)
+    elif ext == "eml":
+        meta, body = parse_eml(raw)
+    else:
+        raise ValueError("Extension non prise en charge")
+
+    # format AAAAMMJJ
     try:
         date_tag = dtparser.parse(meta["date"], fuzzy=True).strftime("%Y%m%d")
     except Exception:
         date_tag = datetime.now().strftime("%Y%m%d")
 
     numero = f"{date_tag}_{idx:03d}"
-    synthese = summarise_email(meta, msg.body or "")
+    synthese = summarise_email(meta, body)
 
     return {
         "Numéro de l'email par date": numero,
@@ -82,12 +131,12 @@ def msg_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
 
 
 # ─────────────────────────── UI ────────────────────────────
-st.set_page_config(page_title="Synthèse emails Outlook", layout="wide")
-st.title("Synthèse d'emails Outlook (.msg)")
+st.set_page_config(page_title="Synthèse emails (.msg & .eml)", layout="wide")
+st.title("Synthèse d'emails Outlook (.msg) et RFC 822 (.eml)")
 
 files = st.file_uploader(
-    "Glissez ici vos fichiers .msg",
-    type="msg",
+    "Déposez vos fichiers .msg ou .eml",
+    type=("msg", "eml"),
     accept_multiple_files=True,
 )
 
@@ -95,7 +144,7 @@ if st.button("Lancer la synthèse") and files:
     rows = []
     for i, f in enumerate(files, 1):
         with st.spinner(f"Traitement {f.name}"):
-            rows.append(msg_bytes_to_record(f.read(), i, f.name))
+            rows.append(file_bytes_to_record(f.read(), i, f.name))
 
     df = pd.DataFrame(rows)
     st.success("Synthèse terminée")
