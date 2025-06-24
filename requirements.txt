@@ -4,3 +4,4 @@ extract-msg
 olefile
 pandas
 xlsxwriter
+python-dateutil
