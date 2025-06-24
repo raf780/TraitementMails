@@ -1,0 +1,6 @@
+streamlit
+openai
+extract-msg
+olefile
+pandas
+xlsxwriter
