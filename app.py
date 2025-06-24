@@ -131,8 +131,8 @@ def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
 
 
 # ─────────────────────────── UI ────────────────────────────
-st.set_page_config(page_title="Synthèse emails (.msg & .eml)", layout="wide")
-st.title("Synthèse d'emails Outlook (.msg) et RFC 822 (.eml)")
+st.set_page_config(page_title="Synthèse d'emails", layout="wide")
+st.title("Synthèse d'emails")
 
 files = st.file_uploader(
     "Déposez vos fichiers .msg ou .eml",
