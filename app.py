@@ -39,21 +39,18 @@ def summarise_email(meta: dict, body: str) -> str:
         + body
     )
 
-    resp = client.responses.create(
+    resp = client.chat.completions.create(
         model="gpt-4.1-mini",
-        input=[
-            {"role": "system", "content": [{"type": "input_text", "text": ""}]},
-            {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
+        messages=[
+            {"role": "system", "content": ""},
+            {"role": "user", "content": prompt},
         ],
-        text={"format": {"type": "text"}},
-        reasoning={},
-        tools=[],
         temperature=1,
-        max_output_tokens=2048,
+        max_tokens=2048,
         top_p=1,
-        store=True,
     )
-    return resp.text.strip()
+
+    return resp.choices[0].message.content.strip()
 
 
 # ───────────────────────── .msg → record ─────────────────────────
