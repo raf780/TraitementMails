@@ -64,7 +64,8 @@ def parse_msg(raw: bytes):
         "sender": m.sender or "inconnu",
         "to": m.to or "inconnu",
         "attachments": [
-            att.longFilename or att.shortFilename for att in m.attachments
+            att.longFilename or att.shortFilename or "fichier_sans_nom"
+            for att in m.attachments
         ] if m.attachments else [],
     }
     body = m.body or ""
@@ -80,7 +81,7 @@ def parse_eml(raw: bytes):
         "sender": eml.get("from", "inconnu"),
         "to": eml.get("to", "inconnu"),
         "attachments": [
-            part.get_filename()
+            part.get_filename() or "fichier_sans_nom"
             for part in eml.iter_attachments()
             if part.get_filename()
         ],
