@@ -75,7 +75,7 @@ def parse_msg(raw: bytes):
                 attachments.append("fichier_sans_nom")
 
     meta = {
-        "date": m.date or "",
+        "date": m.date,  # Garder None si pas de date, plutôt qu'une chaîne vide
         "subject": m.subject or "sans objet",
         "sender": m.sender or "inconnu",
         "to": m.to or "inconnu",
@@ -89,7 +89,7 @@ def parse_eml(raw: bytes):
     eml = BytesParser(policy=policy.default).parsebytes(raw)
 
     meta = {
-        "date": eml.get("date", ""),
+        "date": eml.get("date"),  # Garder None si pas de date, plutôt qu'une chaîne vide
         "subject": eml.get("subject", "sans objet"),
         "sender": eml.get("from", "inconnu"),
         "to": eml.get("to", "inconnu"),
@@ -139,11 +139,26 @@ def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
             "Synthèse": f"Erreur lors du traitement du fichier {fname}: {str(e)}",
         }
 
-    # format AAAAMMJJ
-    try:
-        date_tag = dtparser.parse(meta["date"], fuzzy=True).strftime("%Y%m%d")
-    except Exception:
+    # format AAAAMMJJ - utiliser la date de l'email
+    date_tag = None
+    
+    # Essayer de parser la date de l'email
+    if meta["date"]:
+        try:
+            # Si c'est déjà un objet datetime
+            if isinstance(meta["date"], datetime):
+                date_tag = meta["date"].strftime("%Y%m%d")
+            # Si c'est une chaîne, la parser
+            elif isinstance(meta["date"], str) and meta["date"].strip():
+                parsed_date = dtparser.parse(meta["date"], fuzzy=True)
+                date_tag = parsed_date.strftime("%Y%m%d")
+        except Exception as e:
+            st.warning(f"Impossible de parser la date '{meta['date']}' pour {fname}, utilisation de la date du jour")
+    
+    # Fallback vers la date du jour seulement si aucune date n'est disponible
+    if not date_tag:
         date_tag = datetime.now().strftime("%Y%m%d")
+        st.warning(f"Aucune date trouvée pour {fname}, utilisation de la date du jour")
 
     numero = f"{date_tag}_{idx:03d}"
     
