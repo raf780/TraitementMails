@@ -136,6 +136,7 @@ def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
             "Numéro de l'email par date": numero,
             "Emetteur": "ERREUR",
             "Récipiendaire": "ERREUR",
+            "Objet": "ERREUR",
             "Synthèse": f"Erreur lors du traitement du fichier {fname}: {str(e)}",
         }
 
@@ -172,6 +173,7 @@ def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
         "Numéro de l'email par date": numero,
         "Emetteur": meta["sender"],
         "Récipiendaire": meta["to"],
+        "Objet": meta["subject"],
         "Synthèse": synthese,
     }
 
