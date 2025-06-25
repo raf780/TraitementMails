@@ -31,7 +31,10 @@ def summarise_email(meta: dict, body: str) -> str:
         f"Destinataire: {meta['to']}",
     ]
     if meta["attachments"]:
-        context.append("Pièces jointes: " + ", ".join(meta["attachments"]))
+        # Ensure all attachment names are strings and filter out None values
+        safe_attachments = [str(att) for att in meta["attachments"] if att is not None]
+        if safe_attachments:
+            context.append("Pièces jointes: " + ", ".join(safe_attachments))
 
     prompt = (
         "Résume le mail suivant en une seule ligne Excel.\n\n"
@@ -58,15 +61,22 @@ def summarise_email(meta: dict, body: str) -> str:
 def parse_msg(raw: bytes):
     m = extract_msg.Message(io.BytesIO(raw))
 
+    # Extract attachment names, filtering out None values
+    attachments = []
+    if m.attachments:
+        for att in m.attachments:
+            filename = att.longFilename or att.shortFilename
+            if filename:
+                attachments.append(filename)
+            else:
+                attachments.append("fichier_sans_nom")
+
     meta = {
         "date": m.date or "",
         "subject": m.subject or "sans objet",
         "sender": m.sender or "inconnu",
         "to": m.to or "inconnu",
-        "attachments": [
-            att.longFilename or att.shortFilename or "fichier_sans_nom"
-            for att in m.attachments
-        ] if m.attachments else [],
+        "attachments": attachments,
     }
     body = m.body or ""
     return meta, body
