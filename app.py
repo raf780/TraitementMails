@@ -59,7 +59,10 @@ def summarise_email(meta: dict, body: str) -> str:
 
 # ──────────────── Helpers de parsing ────────────────
 def parse_msg(raw: bytes):
-    m = extract_msg.Message(io.BytesIO(raw))
+    try:
+        m = extract_msg.Message(io.BytesIO(raw))
+    except Exception as e:
+        raise Exception(f"Impossible de lire le fichier .msg: {str(e)}")
 
     # Extract attachment names, filtering out None values
     attachments = []
@@ -117,12 +120,24 @@ def parse_eml(raw: bytes):
 def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
     ext = fname.lower().rsplit(".", 1)[-1]
 
-    if ext == "msg":
-        meta, body = parse_msg(raw)
-    elif ext == "eml":
-        meta, body = parse_eml(raw)
-    else:
-        raise ValueError("Extension non prise en charge")
+    try:
+        if ext == "msg":
+            meta, body = parse_msg(raw)
+        elif ext == "eml":
+            meta, body = parse_eml(raw)
+        else:
+            raise ValueError("Extension non prise en charge")
+    except Exception as e:
+        # Si le fichier ne peut pas être parsé, retourner un enregistrement d'erreur
+        st.error(f"Erreur lors du traitement de {fname}: {str(e)}")
+        date_tag = datetime.now().strftime("%Y%m%d")
+        numero = f"{date_tag}_{idx:03d}"
+        return {
+            "Numéro de l'email par date": numero,
+            "Emetteur": "ERREUR",
+            "Récipiendaire": "ERREUR",
+            "Synthèse": f"Erreur lors du traitement du fichier {fname}: {str(e)}",
+        }
 
     # format AAAAMMJJ
     try:
@@ -131,7 +146,12 @@ def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
         date_tag = datetime.now().strftime("%Y%m%d")
 
     numero = f"{date_tag}_{idx:03d}"
-    synthese = summarise_email(meta, body)
+    
+    try:
+        synthese = summarise_email(meta, body)
+    except Exception as e:
+        st.error(f"Erreur lors de la synthèse de {fname}: {str(e)}")
+        synthese = f"Erreur lors de la synthèse: {str(e)}"
 
     return {
         "Numéro de l'email par date": numero,
