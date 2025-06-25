@@ -37,7 +37,7 @@ def summarise_email(meta: dict, body: str) -> str:
             context.append("Pièces jointes: " + ", ".join(safe_attachments))
 
     prompt = (
-        "Résume le mail suivant en une seule ligne Excel.\n\n"
+        "Résume le mail suivant en une seule ligne explicative.\n\n"
         + "\n".join(context)
         + "\n\nCorps:\n"
         + body
