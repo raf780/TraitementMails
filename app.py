@@ -12,6 +12,7 @@ import io
 from datetime import datetime
 from email import policy
 from email.parser import BytesParser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import extract_msg
 import openai
@@ -189,13 +190,49 @@ files = st.file_uploader(
 )
 
 if st.button("Lancer la synthèse") and files:
+    # Configuration pour la parallélisation
+    max_workers = st.sidebar.slider("Nombre de traitements parallèles", 1, 10, 3, 
+                                   help="Plus élevé = plus rapide, mais attention aux limites de l'API OpenAI")
+    
+    # Préparer les données pour le traitement parallèle
+    file_data = [(f.read(), i, f.name) for i, f in enumerate(files, 1)]
+    
+    # Traitement parallèle
     rows = []
-    for i, f in enumerate(files, 1):
-        with st.spinner(f"Traitement {f.name}"):
-            rows.append(file_bytes_to_record(f.read(), i, f.name))
-
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Soumettre tous les jobs
+        future_to_index = {
+            executor.submit(file_bytes_to_record, data[0], data[1], data[2]): data[1] 
+            for data in file_data
+        }
+        
+        # Collecter les résultats au fur et à mesure
+        completed = 0
+        total = len(files)
+        
+        for future in as_completed(future_to_index):
+            try:
+                result = future.result()
+                rows.append(result)
+                completed += 1
+                
+                # Mettre à jour la barre de progression
+                progress_bar.progress(completed / total)
+                status_text.text(f"Traitement terminé: {completed}/{total}")
+                
+            except Exception as e:
+                st.error(f"Erreur lors du traitement: {str(e)}")
+                completed += 1
+                progress_bar.progress(completed / total)
+    
+    # Trier les résultats par numéro d'email pour maintenir l'ordre
+    rows.sort(key=lambda x: x.get("Numéro de l'email par date", ""))
+    
     df = pd.DataFrame(rows)
-    st.success("Synthèse terminée")
+    st.success(f"Synthèse terminée! {len(files)} emails traités en parallèle.")
     st.dataframe(df, use_container_width=True)
 
     csv_data = df.to_csv(index=False).encode("utf-8")
