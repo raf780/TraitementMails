@@ -153,12 +153,12 @@ def file_bytes_to_record(raw: bytes, idx: int, fname: str) -> dict:
                 parsed_date = dtparser.parse(meta["date"], fuzzy=True)
                 date_tag = parsed_date.strftime("%Y%m%d")
         except Exception as e:
-            st.warning(f"Impossible de parser la date '{meta['date']}' pour {fname}, utilisation de la date du jour")
+            st.warning(f"Impossible de parser la date '{meta['date']}' pour {fname}, utilisation de 'date_inconnue'")
     
-    # Fallback vers la date du jour seulement si aucune date n'est disponible
+    # Fallback si aucune date n'est disponible
     if not date_tag:
-        date_tag = datetime.now().strftime("%Y%m%d")
-        st.warning(f"Aucune date trouvée pour {fname}, utilisation de la date du jour")
+        date_tag = "date_inconnue"
+        st.warning(f"Aucune date trouvée pour {fname}, utilisation de 'date_inconnue'")
 
     numero = f"{date_tag}_{idx:03d}"
     
